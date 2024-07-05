@@ -9,18 +9,26 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    permissions:
+      id-token: write  # Allow GitHub to generate an OIDC token
+      contents: read   # Allow GitHub to read repository contents
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2  # Checks out your repository's code
+        uses: actions/checkout@v3  # Checks out your repository's code
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+      - name: Configure AWS credentials from OIDC
+        id: aws-creds
+        uses: aws-actions/configure-aws-credentials@v3
         with:
           role-to-assume: arn:aws:iam::074460675775:role/git-role
-          aws-region: us-east-1  # Replace with your AWS region
+          aws-region: us-east-1
 
-      - name: Sync to S3
-        run: |
-          aws s3 sync . s3://${{ secrets.AWS_S3_BUCKET }} --delete --acl public-read
-        env:
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+      - name: Verify AWS Identity
+        run: aws sts get-caller-identity
+
+      - name: Empty S3 bucket
+        run: aws s3 rm s3://githubactionss3bucket --recursive
+
+      - name: Sync S3 bucket
+        run: aws s3 sync website/ s3://githubactionss3bucket --acl public-read
